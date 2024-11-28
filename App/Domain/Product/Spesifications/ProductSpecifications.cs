@@ -6,16 +6,16 @@ public class ProductSpecifications
 {
     public static ISpecification<Product> IsAvailable()
     {
-        return new BaseSpecification<Product>(p => p.IsAvailable);
+        return new IsAvailableSpecification();
     }
 
     public static ISpecification<Product> PriceGreaterThan(decimal price)
     {
-        return new BaseSpecification<Product>(p => p.Price > price);
+        return new PriceGreaterThanSpecification(price);
     }
 
     public static ISpecification<Product> PriceLessThan(decimal price)
     {
-        return new BaseSpecification<Product>(p => p.Price < price);
+        return new PriceLessThanSpecification(price);
     }
 }

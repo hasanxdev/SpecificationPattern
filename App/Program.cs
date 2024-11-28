@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using WebApplication1.Domain.Product.Spesifications;
 using WebApplication1.Infrastructure;
 using WebApplication1.Services;
@@ -5,36 +6,32 @@ using WebApplication1.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<ApplicationDbContext>();
-builder.Services.AddScoped<ProductService>();
+builder.Services.AddScoped<ProductRepository>();
 
 var app = builder.Build();
 
 app.MapGet("/", () => "Hello World!");
 
 await using var scope = app.Services.CreateAsyncScope();
-var productService = scope.ServiceProvider.GetRequiredService<ProductService>();
+var productService = scope.ServiceProvider.GetRequiredService<ProductRepository>();
 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-var products = dbContext.Products.Where(product =>
-        product.IsAvailable &&
-        product.Price > 50 &&
-        product.Price < 100)
-    .ToList();
+var availableProductInRange = await productService.GetAvailableProductInRangeAsync(40, 100);
+var productInRange = await productService.GetProductInRangeAsync(40, 100);
 
-foreach (var product in products)
-{
-    Console.WriteLine($"Product : {product.Name}, Price: {product.Price}");
-}
-
-var specification = ProductSpecifications.IsAvailable()
-    .And(ProductSpecifications.PriceGreaterThan(50))
+var availableProductInRangeSpec = ProductSpecifications.IsAvailable()
+    .And(ProductSpecifications.PriceGreaterThan(40))
     .And(ProductSpecifications.PriceLessThan(100));
 
-var productsWithSpecification = await productService.GetProductsAsync(specification);
+var newAvailableProductInRange = await dbContext.Products
+    .Where(availableProductInRangeSpec.ToExpression())
+    .ToListAsync();
 
-foreach (var product in productsWithSpecification)
-{
-    Console.WriteLine($"Product with specification : {product.Name}, Price: {product.Price}");
-}
+var productInRangeSpec = ProductSpecifications.PriceGreaterThan(40)
+    .And(ProductSpecifications.PriceLessThan(100));
+
+var newProductInRange = await dbContext.Products
+    .Where(productInRangeSpec.ToExpression())
+    .ToListAsync();
 
 app.Run();

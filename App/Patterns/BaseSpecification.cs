@@ -2,66 +2,110 @@
 
 namespace WebApplication1.Patterns;
 
-public class BaseSpecification<T> : ISpecification<T>
+public abstract class CompositeSpecification<T> : ISpecification<T>
 {
-    public Expression<Func<T, bool>> Criteria { get; private set; }
+    public abstract bool IsSatisfiedBy(T entity);
 
-    public BaseSpecification(Expression<Func<T, bool>> criteria)
-    {
-        Criteria = criteria;
-    }
+    public abstract Expression<Func<T, bool>> ToExpression();
 
     public ISpecification<T> And(ISpecification<T> other)
     {
-        return new BaseSpecification<T>(
-            Criteria.AndAlso(other.Criteria)
-        );
+        return new AndSpecification<T>(this, other);
     }
 
     public ISpecification<T> Or(ISpecification<T> other)
     {
-        return new BaseSpecification<T>(
-            Criteria.OrElse(other.Criteria)
-        );
+        return new OrSpecification<T>(this, other);
     }
 
     public ISpecification<T> Not()
     {
-        return new BaseSpecification<T>(
-            Criteria.Not()
-        );
+        return new NotSpecification<T>(this);
     }
 }
 
-public static class SpecificationExtensions
+public class AndSpecification<T> : CompositeSpecification<T>
 {
-    public static Expression<Func<T, bool>> AndAlso<T>(this Expression<Func<T, bool>> left, Expression<Func<T, bool>> right)
-    {
-        var parameter = Expression.Parameter(typeof(T));
-        var combined = Expression.AndAlso(
-            Expression.Invoke(left, parameter),
-            Expression.Invoke(right, parameter)
-        );
+    private readonly ISpecification<T> _one;
+    private readonly ISpecification<T> _other;
 
-        return Expression.Lambda<Func<T, bool>>(combined, parameter);
+    public AndSpecification(ISpecification<T> one, ISpecification<T> other)
+    {
+        _one = one;
+        _other = other;
     }
 
-    public static Expression<Func<T, bool>> OrElse<T>(this Expression<Func<T, bool>> left, Expression<Func<T, bool>> right)
+    public override bool IsSatisfiedBy(T entity)
     {
-        var parameter = Expression.Parameter(typeof(T));
-        var combined = Expression.OrElse(
-            Expression.Invoke(left, parameter),
-            Expression.Invoke(right, parameter)
-        );
-
-        return Expression.Lambda<Func<T, bool>>(combined, parameter);
+        return _one.IsSatisfiedBy(entity) && _other.IsSatisfiedBy(entity);
     }
 
-    public static Expression<Func<T, bool>> Not<T>(this Expression<Func<T, bool>> expression)
+    public override Expression<Func<T, bool>> ToExpression()
     {
-        var parameter = Expression.Parameter(typeof(T));
-        var combined = Expression.Not(Expression.Invoke(expression, parameter));
+        var oneExpr = _one.ToExpression();
+        var otherExpr = _other.ToExpression();
 
-        return Expression.Lambda<Func<T, bool>>(combined, parameter);
+        var parameter = Expression.Parameter(typeof(T));
+        var body = Expression.AndAlso(
+            Expression.Invoke(oneExpr, parameter),
+            Expression.Invoke(otherExpr, parameter));
+
+        return Expression.Lambda<Func<T, bool>>(body, parameter);
+    }
+}
+
+public class OrSpecification<T> : CompositeSpecification<T>
+{
+    private readonly ISpecification<T> _one;
+    private readonly ISpecification<T> _other;
+
+    public OrSpecification(ISpecification<T> one, ISpecification<T> other)
+    {
+        _one = one;
+        _other = other;
+    }
+
+    public override bool IsSatisfiedBy(T entity)
+    {
+        return _one.IsSatisfiedBy(entity) || _other.IsSatisfiedBy(entity);
+    }
+
+    public override Expression<Func<T, bool>> ToExpression()
+    {
+        var oneExpr = _one.ToExpression();
+        var otherExpr = _other.ToExpression();
+
+        var parameter = Expression.Parameter(typeof(T));
+        var body = Expression.OrElse(
+            Expression.Invoke(oneExpr, parameter),
+            Expression.Invoke(otherExpr, parameter));
+
+        return Expression.Lambda<Func<T, bool>>(body, parameter);
+    }
+}
+
+public class NotSpecification<T> : CompositeSpecification<T>
+{
+    private readonly ISpecification<T> _wrapped;
+
+    public NotSpecification(ISpecification<T> wrapped)
+    {
+        _wrapped = wrapped;
+    }
+
+    public override bool IsSatisfiedBy(T entity)
+    {
+        return !_wrapped.IsSatisfiedBy(entity);
+    }
+
+    public override Expression<Func<T, bool>> ToExpression()
+    {
+        var wrappedExpr = _wrapped.ToExpression();
+
+        var parameter = Expression.Parameter(typeof(T));
+        var body = Expression.Not(
+            Expression.Invoke(wrappedExpr, parameter));
+
+        return Expression.Lambda<Func<T, bool>>(body, parameter);
     }
 }
